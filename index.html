@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>固定尺寸 Widget + Clamp 響應式示範</title>
+<style>
+  :root {
+    --bg: #eef0f2;
+    --panel-bg: #ffffff;
+    --header-bg: #17203a;
+    --accent: #2f6fed;
+    --warn: #e0762e;
+    --text: #1c2230;
+    --text-dim: #6b7280;
+    --border: #e2e5ea;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    min-height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang TC", "Microsoft JhengHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+
+  .layout {
+    display: flex;
+    gap: 20px;
+    padding: 20px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  /* ---------- side controls ---------- */
+  .controls {
+    width: 260px;
+    flex-shrink: 0;
+    background: #ffffff;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px;
+    box-shadow: 0 6px 20px rgba(20,25,40,0.06);
+  }
+  .controls h2 {
+    font-size: 14px;
+    margin: 0 0 4px;
+  }
+  .controls .sub {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin: 0 0 18px;
+    line-height: 1.5;
+  }
+  .controls .sub.tight { margin: 0 0 14px; }
+  .field { margin-bottom: 18px; }
+  .field label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12.5px;
+    margin-bottom: 6px;
+    color: var(--text);
+  }
+  .field label .val {
+    font-variant-numeric: tabular-nums;
+    color: var(--accent);
+    font-weight: 600;
+  }
+  input[type="range"] {
+    width: 100%;
+    accent-color: var(--accent);
+  }
+  .preset-row { display: flex; gap: 6px; margin-bottom: 6px; }
+  .preset-btn {
+    flex: 1;
+    font-size: 11px;
+    padding: 6px 0;
+    border: 1px solid var(--border);
+    background: #f7f8fa;
+    border-radius: 7px;
+    cursor: pointer;
+    color: var(--text-dim);
+  }
+  .preset-btn:hover { background: #eef1f6; color: var(--text); }
+
+  .divider { height: 1px; background: var(--border); margin: 16px 0; }
+
+  .tier-title {
+    font-size: 13px;
+    margin: 0 0 8px;
+    color: var(--text);
+  }
+
+  .tier-row { display: flex; gap: 6px; margin-bottom: 12px; }
+  .tier-row .size-btn {
+    flex: 1;
+    padding: 7px 0;
+    font-size: 12px;
+    border: 1px solid var(--border);
+    background: #f7f8fa;
+    border-radius: 7px;
+    cursor: pointer;
+    color: var(--text);
+  }
+  .tier-row .size-btn:hover { background: #eef1f6; }
+  .tier-row .size-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 12.5px;
+    padding: 4px 0 14px;
+  }
+  .switch {
+    position: relative;
+    width: 36px;
+    height: 20px;
+    background: #d7dbe2;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background .15s ease;
+    flex-shrink: 0;
+  }
+  .switch.on { background: var(--accent); }
+  .switch::after {
+    content: "";
+    position: absolute;
+    top: 2px; left: 2px;
+    width: 16px; height: 16px;
+    background: #fff;
+    border-radius: 50%;
+    transition: transform .15s ease;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+  }
+  .switch.on::after { transform: translateX(16px); }
+
+  .formula {
+    font-size: 11px;
+    background: #f7f8fa;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    line-height: 1.7;
+    color: var(--text-dim);
+  }
+  .formula b { color: var(--text); }
+
+  .readout {
+    margin-top: 14px;
+    font-size: 12.5px;
+    line-height: 1.8;
+  }
+  .readout .row { display: flex; justify-content: space-between; }
+  .readout .row .k { color: var(--text-dim); }
+  .readout .row .v { font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  .ratio-warning {
+    margin-top: 12px;
+    font-size: 12px;
+    padding: 9px 11px;
+    border-radius: 8px;
+    line-height: 1.5;
+    display: none;
+  }
+  .ratio-warning.show { display: block; }
+  .ratio-warning.ok { background: #eaf7ef; color: #1f8a4c; }
+  .ratio-warning.warn { background: #fdf1e8; color: #b8631c; }
+
+  /* ---------- simulated screen frame ---------- */
+  .stage {
+    flex: 1;
+    min-width: 340px;
+  }
+  .stage-label {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .stage-label .chip {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 2px 8px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .frame-wrap {
+    display: flex;
+    justify-content: center;
+    background: #d9dde3;
+    border-radius: 14px;
+    padding: 24px;
+  }
+
+  .frame {
+    position: relative;
+    background:
+      radial-gradient(circle at 15% 20%, #dde3ec 0%, transparent 40%),
+      linear-gradient(180deg, #f5f6f8 0%, #e9ebef 100%);
+    border: 1px solid #c7cbd3;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 10px 30px rgba(20,25,40,0.12);
+    transition: width .12s linear, height .12s linear;
+  }
+
+  .frame-topbar {
+    height: 40px;
+    background: #ffffff;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 14px;
+    gap: 7px;
+  }
+  .frame-topbar .dot { width: 7px; height: 7px; border-radius: 50%; background: #d8dbe0; }
+
+  .frame-body { padding: 20px; }
+  .frame-body h3 { font-size: 15px; margin: 0 0 4px; }
+  .frame-body p { font-size: 11.5px; color: var(--text-dim); margin: 0 0 14px; }
+  .frame-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .frame-card { background: #fff; border: 1px solid var(--border); border-radius: 8px; height: 56px; }
+
+  /* ---------- launcher: always fixed ---------- */
+  .launcher {
+    position: absolute;
+    bottom: 24px;
+    right: 24px;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 8px 20px rgba(47,111,237,0.35);
+    z-index: 20;
+    cursor: pointer;
+  }
+  .launcher.animated {
+    transition: width .28s cubic-bezier(.2,.8,.2,1), height .28s cubic-bezier(.2,.8,.2,1),
+                right .28s ease, bottom .28s ease;
+  }
+
+  /* ---------- panel: sized by clamp() ---------- */
+  .panel {
+    position: absolute;
+    right: 24px;
+    background: var(--panel-bg);
+    border-radius: 14px;
+    box-shadow: 0 16px 40px rgba(20,25,40,0.18);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    z-index: 15;
+    opacity: 0;
+    transform: translateY(14px) scale(0.96);
+    pointer-events: none;
+    max-width: calc(100% - 16px);
+    max-height: calc(100% - 16px);
+    transition: width .22s cubic-bezier(.2,.8,.2,1), height .22s cubic-bezier(.2,.8,.2,1),
+                bottom .22s cubic-bezier(.2,.8,.2,1), right .22s ease,
+                opacity .18s ease, transform .18s ease;
+  }
+  .panel.open {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    pointer-events: auto;
+  }
+  .panel-header {
+    background: var(--header-bg);
+    color: #fff;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    flex-shrink: 0;
+  }
+  .avatar-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    flex-shrink: 0;
+  }
+  .avatar-size-label {
+    font-size: 8.5px;
+    color: rgba(255,255,255,0.5);
+    white-space: nowrap;
+  }
+  .avatar-size-label.light { display: block; margin-bottom: 8px; }
+
+  .panel-avatar {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.15);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px;
+    transition: width .25s cubic-bezier(.2,.8,.2,1), height .25s cubic-bezier(.2,.8,.2,1), font-size .25s ease;
+    flex-shrink: 0;
+  }
+  .panel-header .name { font-size: 12.5px; font-weight: 600; }
+  .panel-header .status { font-size: 10px; opacity: 0.65; display: flex; align-items: center; gap: 4px; }
+  .panel-header .status::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: #3ddc84; }
+
+  .panel-body {
+    flex: 1;
+    padding: 14px;
+    overflow-y: auto;
+    background: #f7f8fa;
+  }
+  .greeting-card {
+    background: var(--header-bg);
+    border-radius: 12px;
+    padding: 18px 16px;
+    text-align: center;
+    margin-bottom: 12px;
+  }
+  .greeting-card-avatar {
+    width: 56px; height: 56px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.15);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 24px;
+    margin: 0 auto 4px;
+    transition: width .25s cubic-bezier(.2,.8,.2,1), height .25s cubic-bezier(.2,.8,.2,1), font-size .25s ease;
+  }
+  .greeting-card-title { color: #fff; font-size: 13.5px; font-weight: 600; margin-bottom: 6px; }
+  .greeting-card-text { color: rgba(255,255,255,0.75); font-size: 11.5px; line-height: 1.5; }
+  .bubble {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 10px 10px 10px 3px;
+    padding: 9px 11px;
+    font-size: 12px;
+    line-height: 1.55;
+    max-width: 80%;
+    margin-bottom: 9px;
+    color: var(--text);
+  }
+  .panel-footer {
+    padding: 9px 10px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+    background: #fff;
+  }
+  .panel-footer input {
+    flex: 1;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 7px 12px;
+    font-size: 12px;
+    outline: none;
+    background: #f7f8fa;
+  }
+  .panel-footer .send {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: var(--accent);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .size-tag {
+    position: absolute;
+    top: 8px;
+    right: 10px;
+    background: rgba(255,255,255,0.15);
+    color: #fff;
+    font-size: 9.5px;
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-weight: 600;
+    z-index: 5;
+  }
+  .launcher-tag {
+    position: absolute;
+    top: -18px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 9px;
+    color: var(--text-dim);
+    white-space: nowrap;
+  }
+</style>
+</head>
+<body>
+
+<div class="layout">
+
+  <div class="controls">
+    <h2 class="tier-title">Widget 尺寸</h2>
+    <div class="tier-row">
+      <button class="size-btn active" data-tier="s">S</button>
+      <button class="size-btn" data-tier="m">M</button>
+      <button class="size-btn" data-tier="l">L</button>
+    </div>
+
+    <div class="toggle-row">
+      <span id="toggleLabel">展開後按鈕固定 60px</span>
+      <div class="switch" id="matchSwitch"></div>
+    </div>
+
+    <div class="toggle-row" id="animRow">
+      <span id="animLabel">收合時尺寸漸變動畫</span>
+      <div class="switch on" id="animSwitch"></div>
+    </div>
+
+    <div class="field offset-field">
+      <label>Offset - 右邊距 <span class="val" id="offsetXVal">24px</span></label>
+      <input type="range" id="offsetXRange" min="20" max="200" value="24" step="2">
+    </div>
+    <div class="field offset-field">
+      <label>Offset - 下邊距 <span class="val" id="offsetYVal">24px</span></label>
+      <input type="range" id="offsetYRange" min="20" max="200" value="24" step="2">
+    </div>
+    <p class="sub tight">這兩項是唯一開放調整的設定:Widget 尺寸只決定收合泡泡的大小,展開後的視窗統一用同一套尺寸規則,只確保不管怎麼設定都不會破版。</p>
+
+    <div class="divider"></div>
+
+    <h2>模擬螢幕尺寸</h2>
+    <p class="sub">這不是 widget 設定,只是用來模擬「使用者實際瀏覽器」大小不一致的情境,測試上面兩個值在各種螢幕下會不會破版。</p>
+
+    <div class="preset-row">
+      <button class="preset-btn" data-w="1440" data-h="900">大螢幕</button>
+      <button class="preset-btn" data-w="1024" data-h="768">筆電</button>
+      <button class="preset-btn" data-w="768" data-h="600">窄螢幕</button>
+    </div>
+
+    <div class="field">
+      <label>模擬螢幕寬度 <span class="val" id="wVal">1024px</span></label>
+      <input type="range" id="wRange" min="600" max="1600" value="1024" step="4">
+    </div>
+    <div class="field">
+      <label>模擬螢幕高度 <span class="val" id="hVal">768px</span></label>
+      <input type="range" id="hRange" min="480" max="1000" value="768" step="4">
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="formula" id="formulaBox">—</div>
+
+
+    <div class="readout">
+      <div class="row"><span class="k">計算後視窗寬</span><span class="v" id="outW">—</span></div>
+      <div class="row"><span class="k">計算後視窗高</span><span class="v" id="outH">—</span></div>
+      <div class="row"><span class="k">按鈕 / 視窗寬比例</span><span class="v" id="outRatio">—</span></div>
+    </div>
+
+    <div class="ratio-warning" id="ratioMsg"></div>
+  </div>
+
+  <div class="stage">
+    <div class="stage-label">模擬瀏覽器可視區域 <span class="chip" id="frameDim">1024 × 768</span></div>
+    <div class="frame-wrap">
+      <div class="frame" id="frame">
+        <div class="frame-topbar">
+          <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+        </div>
+        <div class="frame-body">
+          <h3>Room Intelligence</h3>
+          <p>General Overview</p>
+          <div class="frame-cards">
+            <div class="frame-card"></div>
+            <div class="frame-card"></div>
+            <div class="frame-card"></div>
+          </div>
+        </div>
+
+        <div class="panel" id="panel">
+          <div class="size-tag" id="sizeTag">400×600</div>
+          <div class="panel-header">
+            <div class="avatar-wrap">
+              <div class="panel-avatar" id="headerAvatar">🦏</div>
+              <span class="avatar-size-label" id="headerAvatarLabel">28px</span>
+            </div>
+            <div>
+              <div class="name">Ollie</div>
+              <div class="status">Online</div>
+            </div>
+          </div>
+          <div class="panel-body">
+            <div class="greeting-card" id="greetingCard">
+              <div class="greeting-card-avatar" id="cardAvatar">🦏</div>
+              <span class="avatar-size-label light" id="cardAvatarLabel">56px</span>
+              <div class="greeting-card-title">GoNimbus 智慧助理</div>
+              <div class="greeting-card-text">歡迎與我聊天,了解更多產品資訊!</div>
+            </div>
+            <div class="bubble">這個視窗尺寸統一用同一套 clamp 公式,不隨 Widget 檔位改變。</div>
+          </div>
+          <div class="panel-footer">
+            <input type="text" placeholder="輸入訊息…" disabled>
+            <div class="send">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M3 11L21 3L13 21L11 13L3 11Z" fill="white"/></svg>
+            </div>
+          </div>
+        </div>
+
+        <div class="launcher" id="launcher">
+          <span class="launcher-tag" id="launcherTag">60px</span>
+          <svg id="launcherIcon" width="20" height="20" viewBox="0 0 24 24" fill="none">
+            <path d="M4 4h16v12H7l-3 3V4z" stroke="white" stroke-width="1.8" stroke-linejoin="round"/>
+          </svg>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  const LAUNCHER_OPEN = 60; // 展開後(X 按鈕)固定尺寸,三個檔位共用
+
+  // 頭像尺寸不另外開設定,直接跟著收合泡泡(launcherClosed)的比例算出來
+  const HEADER_AVATAR_RATIO = 0.55;
+  const CARD_AVATAR_RATIO = 0.95;
+  let offsetX = 24; // 右邊距,透過 Offset 滑桿控制
+  let offsetY = 24; // 下邊距,透過 Offset 滑桿控制
+  const GAP = 16;
+  const TOP_MARGIN = 16;
+  const SIDE_MARGIN = 16;
+
+  // 視窗尺寸只有「一組」公式,不跟著 S/M/L 分開設定
+  // width: clamp(minW, simW * vw, maxW) / height: clamp(minH, simH * vh, maxH)
+  const PANEL_SIZE = { minW: 400, vw: 0.42, maxW: 520, minH: 560, vh: 0.65, maxH: 700 };
+
+  // S/M/L 只決定「收合狀態(泡泡)」的按鈕大小跟圖示大小,跟視窗尺寸無關
+  const TIERS = {
+    s: { launcherClosed: 60, iconClosed: 22 },
+    m: { launcherClosed: 72, iconClosed: 26 },
+    l: { launcherClosed: 88, iconClosed: 32 },
+  };
+
+  let tier = "s";
+  let isOpen = false;
+  let matchOpenToClosedSize = false; // 開啟後,展開的關閉按鈕跟收合泡泡尺寸一致,不再固定 60px
+  let animateSizeChange = true; // 按鈕尺寸變化(例如固定60px收合回tier尺寸)時是否有漸變動畫
+
+  // 顯示用的 frame 最大可視尺寸(避免滑桿拉到 1600px 時把示範頁面撐爆)
+  const DISPLAY_MAX_W = 760;
+  const DISPLAY_MAX_H = 560;
+
+  const wRange = document.getElementById("wRange");
+  const hRange = document.getElementById("hRange");
+  const wVal = document.getElementById("wVal");
+  const hVal = document.getElementById("hVal");
+  const offsetXRange = document.getElementById("offsetXRange");
+  const offsetXVal = document.getElementById("offsetXVal");
+  const offsetYRange = document.getElementById("offsetYRange");
+  const offsetYVal = document.getElementById("offsetYVal");
+  const frame = document.getElementById("frame");
+  const frameDim = document.getElementById("frameDim");
+  const panel = document.getElementById("panel");
+  const launcher = document.getElementById("launcher");
+  const launcherIcon = document.getElementById("launcherIcon");
+  const launcherTag = document.getElementById("launcherTag");
+  const headerAvatar = document.getElementById("headerAvatar");
+  const cardAvatar = document.getElementById("cardAvatar");
+  const headerAvatarLabel = document.getElementById("headerAvatarLabel");
+  const cardAvatarLabel = document.getElementById("cardAvatarLabel");
+  const matchSwitch = document.getElementById("matchSwitch");
+  const toggleLabel = document.getElementById("toggleLabel");
+  const animSwitch = document.getElementById("animSwitch");
+  const animLabel = document.getElementById("animLabel");
+  const animRow = document.getElementById("animRow");
+  const sizeTag = document.getElementById("sizeTag");
+  const outW = document.getElementById("outW");
+  const outH = document.getElementById("outH");
+  const outRatio = document.getElementById("outRatio");
+  const ratioMsg = document.getElementById("ratioMsg");
+  const formulaBox = document.getElementById("formulaBox");
+
+  function clampVal(min, ideal, max) {
+    return Math.min(Math.max(ideal, min), max);
+  }
+
+  function updateFormulaBox() {
+    const t = TIERS[tier];
+    const closeBtnDesc = matchOpenToClosedSize
+      ? '跟收合泡泡一致(' + t.launcherClosed + 'px)'
+      : '固定 60px,三個檔位共用同一顆';
+    const headerAvatarSize = Math.round(t.launcherClosed * HEADER_AVATAR_RATIO);
+    const cardAvatarSize = Math.round(t.launcherClosed * CARD_AVATAR_RATIO);
+    formulaBox.innerHTML =
+      '收合泡泡檔位:<b>' + tier.toUpperCase() + '</b>(' + t.launcherClosed + 'px)· Offset X/Y:<b>' + offsetX + '/' + offsetY + 'px</b><br>' +
+      '視窗寬度(所有檔位共用):<b>clamp(' + PANEL_SIZE.minW + 'px, ' + Math.round(PANEL_SIZE.vw * 100) + 'vw, ' + PANEL_SIZE.maxW + 'px)</b><br>' +
+      '視窗高度(所有檔位共用):<b>clamp(' + PANEL_SIZE.minH + 'px, ' + Math.round(PANEL_SIZE.vh * 100) + 'vh, ' + PANEL_SIZE.maxH + 'px)</b><br>' +
+      '展開後關閉鈕:<b>' + closeBtnDesc + '</b><br>' +
+      'Header 頭像:<b>' + headerAvatarSize + 'px</b>(泡泡×' + HEADER_AVATAR_RATIO + ')· 卡片頭像:<b>' + cardAvatarSize + 'px</b>(泡泡×' + CARD_AVATAR_RATIO + ')';
+  }
+
+  function setIcon() {
+    const t = TIERS[tier];
+    const openIconSize = matchOpenToClosedSize ? t.iconClosed : 20;
+    const iconSize = isOpen ? openIconSize : t.iconClosed;
+    launcherIcon.setAttribute("width", iconSize);
+    launcherIcon.setAttribute("height", iconSize);
+    if (isOpen) {
+      launcherIcon.innerHTML = '<path d="M5 5L19 19M19 5L5 19" stroke="white" stroke-width="2" stroke-linecap="round"/>';
+    } else {
+      launcherIcon.innerHTML = '<path d="M4 4h16v12H7l-3 3V4z" stroke="white" stroke-width="1.8" stroke-linejoin="round"/>';
+    }
+  }
+
+  function render() {
+    const simW = parseInt(wRange.value, 10);
+    const simH = parseInt(hRange.value, 10);
+    offsetX = parseInt(offsetXRange.value, 10);
+    offsetY = parseInt(offsetYRange.value, 10);
+    wVal.textContent = simW + "px";
+    hVal.textContent = simH + "px";
+    frameDim.textContent = simW + " × " + simH;
+
+    const dispW = Math.min(simW, DISPLAY_MAX_W);
+    const dispH = Math.min(simH, DISPLAY_MAX_H);
+    const scale = Math.min(dispW / simW, dispH / simH, 1);
+    frame.style.width = simW * scale + "px";
+    frame.style.height = simH * scale + "px";
+
+    const t = TIERS[tier];
+    const idealW = clampVal(PANEL_SIZE.minW, simW * PANEL_SIZE.vw, PANEL_SIZE.maxW);
+    const idealH = clampVal(PANEL_SIZE.minH, simH * PANEL_SIZE.vh, PANEL_SIZE.maxH);
+
+    // 收合時(泡泡)跟著檔位放大;展開時(X 按鈕)一律用固定的 LAUNCHER_OPEN
+    const launcherSize = isOpen ? (matchOpenToClosedSize ? t.launcherClosed : LAUNCHER_OPEN) : t.launcherClosed;
+
+    // 不論算出多大,最後都要用「實際可用空間」再夾一次,避免在窄/矮螢幕、或 offset 拉大時溢出
+    // 這裡不設視窗最小高度下限,視窗會依可用空間自由縮小,offset 本身維持你設定的滑桿範圍(20~200px)不額外限制
+    offsetXVal.textContent = offsetX + "px";
+    offsetYVal.textContent = offsetY + "px";
+
+    const bottomOffset = offsetY + launcherSize + GAP;
+    const maxAllowedH = Math.max(0, simH - bottomOffset - TOP_MARGIN);
+    const maxAllowedW = Math.max(0, simW - offsetX - SIDE_MARGIN);
+    const panelWreal = Math.min(idealW, maxAllowedW);
+    const panelHreal = Math.min(idealH, maxAllowedH);
+    const wasClamped = panelWreal < idealW || panelHreal < idealH;
+
+    const s = scale;
+    panel.style.width = (panelWreal * s) + "px";
+    panel.style.height = (panelHreal * s) + "px";
+    panel.style.right = (offsetX * s) + "px";
+    panel.style.bottom = (bottomOffset * s) + "px";
+
+    launcher.classList.toggle("animated", animateSizeChange);
+    launcher.style.width = (launcherSize * s) + "px";
+    launcher.style.height = (launcherSize * s) + "px";
+    launcher.style.right = (offsetX * s) + "px";
+    launcher.style.bottom = (offsetY * s) + "px";
+
+    const iconSizeNow = isOpen ? (matchOpenToClosedSize ? t.iconClosed : 20) : t.iconClosed;
+
+    // 頭像尺寸:不是獨立設定,直接從收合泡泡尺寸(launcherClosed)乘比例算出來
+    const headerAvatarSize = Math.round(t.launcherClosed * HEADER_AVATAR_RATIO);
+    const cardAvatarSize = Math.round(t.launcherClosed * CARD_AVATAR_RATIO);
+    headerAvatar.style.width = headerAvatarSize + "px";
+    headerAvatar.style.height = headerAvatarSize + "px";
+    headerAvatar.style.fontSize = Math.max(11, Math.round(headerAvatarSize * 0.46)) + "px";
+    cardAvatar.style.width = cardAvatarSize + "px";
+    cardAvatar.style.height = cardAvatarSize + "px";
+    cardAvatar.style.fontSize = Math.max(16, Math.round(cardAvatarSize * 0.42)) + "px";
+    headerAvatarLabel.textContent = headerAvatarSize + "px";
+    cardAvatarLabel.textContent = cardAvatarSize + "px";
+
+    launcherTag.textContent = launcherSize + "px · icon " + iconSizeNow + "px" + (isOpen ? (matchOpenToClosedSize ? "(跟隨)" : "(固定)") : "");
+
+    panel.classList.toggle("open", isOpen);
+    updateFormulaBox();
+    setIcon();
+
+    sizeTag.textContent = Math.round(panelWreal) + "×" + Math.round(panelHreal) + (wasClamped ? "(已防溢出縮小)" : "");
+    outW.textContent = Math.round(panelWreal) + "px" + (panelWreal < idealW ? " (夾小)" : "");
+    outH.textContent = Math.round(panelHreal) + "px" + (panelHreal < idealH ? " (夾小)" : "");
+
+    const ratio = launcherSize / panelWreal;
+    outRatio.textContent = (ratio * 100).toFixed(1) + "%";
+
+    ratioMsg.classList.add("show");
+    if (ratio > 0.18) {
+      ratioMsg.className = "ratio-warning show warn";
+      ratioMsg.textContent = "⚠️ 按鈕佔視窗寬度已超過 18%。" + (wasClamped ? " 目前空間不足(可能是 offset 太大),視窗已自動縮小以避免溢出。" : "");
+    } else {
+      ratioMsg.className = "ratio-warning show ok";
+      ratioMsg.textContent = "✓ 按鈕與視窗寬度比例在合理範圍內(< 18%)。" + (wasClamped ? " (視窗因空間不足已自動縮小,比例仍正常)" : "");
+    }
+  }
+
+  wRange.addEventListener("input", render);
+  hRange.addEventListener("input", render);
+  offsetXRange.addEventListener("input", render);
+  offsetYRange.addEventListener("input", render);
+
+  document.querySelectorAll(".preset-row .preset-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      wRange.value = btn.dataset.w;
+      hRange.value = btn.dataset.h;
+      render();
+    });
+  });
+
+  document.querySelectorAll(".tier-row .size-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".tier-row .size-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      tier = btn.dataset.tier;
+      updateFormulaBox();
+      render();
+    });
+  });
+
+  launcher.addEventListener("click", () => {
+    isOpen = !isOpen;
+    setIcon();
+    render();
+  });
+
+  matchSwitch.addEventListener("click", () => {
+    matchOpenToClosedSize = !matchOpenToClosedSize;
+    matchSwitch.classList.toggle("on", matchOpenToClosedSize);
+    toggleLabel.textContent = matchOpenToClosedSize ? "展開後跟隨收合尺寸" : "展開後按鈕固定 60px";
+    animRow.style.display = matchOpenToClosedSize ? "none" : "flex";
+    setIcon();
+    render();
+  });
+
+  animSwitch.addEventListener("click", () => {
+    animateSizeChange = !animateSizeChange;
+    animSwitch.classList.toggle("on", animateSizeChange);
+    render();
+  });
+
+  updateFormulaBox();
+  setIcon();
+  render();
+</script>
+
+</body>
+</html>
